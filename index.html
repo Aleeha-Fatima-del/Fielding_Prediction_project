@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CricAI — Field Placement Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #0a0e14;
+    --surface: #111720;
+    --surface2: #1a2233;
+    --border: #1e2d42;
+    --accent: #00e5a0;
+    --accent2: #f7b731;
+    --red: #ff4d6d;
+    --blue: #3d9cf5;
+    --text: #e8edf5;
+    --muted: #6b7fa3;
+    --pitch: #3d8c3d;
+    --pitch-crease: #2a6b2a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, #0a0e14 0%, #0d1a2a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,229,160,0.3);
+  }
+  .logo span { color: var(--accent2); }
+  .header-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .header-badge b { color: var(--accent); }
+
+  /* LAYOUT */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 65px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    overflow-y: auto;
+    max-height: calc(100vh - 65px);
+  }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  select, input[type="number"], input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 18px 0;
+  }
+
+  .analyze-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent) 0%, #00b87a 100%);
+    color: #0a0e14;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+  .analyze-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,229,160,0.3);
+  }
+
+  /* STAT TAGS */
+  .stat-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin: 2px;
+  }
+  .tag-green { background: rgba(0,229,160,0.15); color: var(--accent); }
+  .tag-yellow { background: rgba(247,183,49,0.15); color: var(--accent2); }
+  .tag-red { background: rgba(255,77,109,0.15); color: var(--red); }
+  .tag-blue { background: rgba(61,156,245,0.15); color: var(--blue); }
+
+  /* RULES ALERT */
+  .rules-alert {
+    background: rgba(247,183,49,0.08);
+    border: 1px solid rgba(247,183,49,0.25);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--accent2);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  /* MAIN CONTENT */
+  .main-content {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* ANALYSIS HEADER */
+  .analysis-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .analysis-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+  .ml-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,229,160,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  /* SCENARIO CHIPS */
+  .scenario-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* SHOT PROB BARS */
+  .prob-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .prob-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+  .prob-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .prob-label {
+    font-size: 12px;
+    font-weight: 500;
+    width: 100px;
+    text-transform: capitalize;
+    color: var(--text);
+  }
+  .prob-track {
+    flex: 1;
+    height: 20px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .prob-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+  }
+  .prob-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    width: 38px;
+    text-align: right;
+    color: var(--muted);
+  }
+
+  /* GROUND SVG CONTAINER */
+  .ground-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .ground-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  #cricket-ground {
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 1;
+  }
+
+  /* FIELDER LEGEND */
+  .fielder-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 16px;
+    width: 100%;
+  }
+  .fielder-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--surface2);
+    border-radius: 5px;
+    padding: 5px 8px;
+  }
+  .ficon { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* INSIGHTS */
+  .insights-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .insight-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .insight-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .insight-icon { font-size: 16px; flex-shrink: 0; }
+
+  /* VIOLATION WARNING */
+  .violation-box {
+    background: rgba(255,77,109,0.08);
+    border: 1px solid rgba(255,77,109,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--red);
+    margin-top: 8px;
+    display: none;
+  }
+
+  /* PLACEHOLDER */
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    color: var(--muted);
+    text-align: center;
+    gap: 12px;
+  }
+  .placeholder-icon { font-size: 64px; opacity: 0.3; }
+  .placeholder-text { font-size: 15px; }
+  .placeholder-sub { font-size: 12px; opacity: 0.6; max-width: 320px; line-height: 1.6; }
+
+  /* RADIO TOGGLE */
+  .toggle-group {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .toggle-group label {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface2);
+    transition: all 0.15s;
+    margin: 0;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .toggle-group input[type="radio"] { display: none; }
+  .toggle-group input[type="radio"]:checked + label {
+    background: var(--accent);
+    color: #0a0e14;
+  }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.9);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 999;
+    display: none;
+  }
+
+  /* POWERPLAY RULES */
+  .pp-rule {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 6px;
+  }
+  .pp-rule b { color: var(--accent2); }
+
+  @media (max-width: 900px) {
+    .app-layout { grid-template-columns: 1fr; }
+    .sidebar { max-height: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Cric<span>AI</span></div>
+  <div class="header-badge">ML Hybrid Engine · <b>Dataset: 4,430 balls</b></div>
+</header>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- BATSMAN PROFILE -->
+    <div class="section-title">🏏 BATSMAN PROFILE</div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Batting Hand</label>
+        <div class="toggle-group">
+          <input type="radio" name="bathand" id="rh" value="right hand bat" checked>
+          <label for="rh">Right</label>
+          <input type="radio" name="bathand" id="lh" value="left hand bat">
+          <label for="lh">Left</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Strike Rate</label>
+        <input type="number" id="strikeRate" placeholder="e.g. 145" value="135">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Batting Avg</label>
+        <input type="number" id="batAvg" placeholder="e.g. 32" value="28">
+      </div>
+      <div class="form-group">
+        <label>Last 5 Inn Avg</label>
+        <input type="number" id="recentAvg" placeholder="e.g. 18" value="22">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- MATCH CONTEXT -->
+    <div class="section-title">📊 MATCH CONTEXT</div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Format</label>
+        <select id="format">
+          <option value="T20">T20</option>
+          <option value="ODI">ODI</option>
+          <option value="Test">Test</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Over Number</label>
+        <input type="number" id="overNum" min="1" max="50" value="7" placeholder="1-50">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Innings</label>
+        <select id="innings">
+          <option value="setting">Setting Target</option>
+          <option value="chasing">Chasing</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Wickets Fallen</label>
+        <input type="number" id="wickets" min="0" max="9" value="2" placeholder="0-9">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Req Run Rate</label>
+        <input type="number" id="rrr" step="0.1" placeholder="e.g. 9.5" value="8.2">
+      </div>
+      <div class="form-group">
+        <label>Match Pressure</label>
+        <select id="pressure">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- BOWLING DETAILS -->
+    <div class="section-title">🏐 BOWLING DETAILS</div>
+    <div class="row2">
+      <div class="form-group">
+        <label>Bowler Type</label>
+        <select id="bowlerType">
+          <option value="right arm fast">RA Fast</option>
+          <option value="left arm fast">LA Fast</option>
+          <option value="right arm spin">RA Spin</option>
+          <option value="left arm spin">LA Spin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Speed (km/h)</label>
+        <input type="number" id="speed" value="138" placeholder="e.g. 138">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Ball Line</label>
+      <select id="ballLine">
+        <option value="outside off">Outside Off Stump</option>
+        <option value="in-wicket">In-Wicket (On Stump)</option>
+        <option value="leg stump">Leg Stump</option>
+        <option value="wide line">Wide Line</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Ball Length</label>
+      <select id="ballLength">
+        <option value="good length">Good Length</option>
+        <option value="short length">Short of Length</option>
+        <option value="full length">Full Length</option>
+        <option value="yorker">Yorker</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Bowling Angle</label>
+      <div class="toggle-group">
+        <input type="radio" name="angle" id="otw" value="over" checked>
+        <label for="otw">Over the Wicket</label>
+        <input type="radio" name="angle" id="atw" value="around">
+        <label for="atw">Around the Wicket</label>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- PITCH CONDITIONS -->
+    <div class="section-title">🏟️ PITCH CONDITIONS</div>
+    <div class="form-group">
+      <label>Pitch Type</label>
+      <select id="pitchType">
+        <option value="flat">Flat / Good Batting</option>
+        <option value="bouncy" selected>Bouncy / Pace-friendly</option>
+        <option value="slow">Slow / Spin-friendly</option>
+        <option value="seaming">Seaming / Swing</option>
+        <option value="turning">Turning</option>
+        <option value="dead">Dead / Dry</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <div id="rulesAlert" class="rules-alert" style="display:none"></div>
+
+    <button class="analyze-btn" onclick="analyzeField()">⚡ ANALYZE FIELD</button>
+    <div class="pp-rule" id="ppRuleText"></div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content" id="mainContent">
+    <div class="placeholder">
+      <div class="placeholder-icon">🏏</div>
+      <div class="placeholder-text">Cricket Field Placement AI</div>
+      <div class="placeholder-sub">Fill in match details on the left and click "Analyze Field" to get ML-powered fielding recommendations based on 4,430 ball-by-ball records.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// HYBRID SHOT PROBABILITY DATA (from ML model)
+// ─────────────────────────────────────────────
+const SHOT_DATA = {"in-wicket|full length|left hand bat":{"fine leg":0.0125,"leg side":0.325,"long off":0.1625,"long on":0.2687,"miss":0.0437,"off side":0.175,"third man":0.0125},"in-wicket|full length|right hand bat":{"fine leg":0.0115,"leg side":0.2529,"long off":0.2759,"long on":0.2146,"miss":0.0498,"off side":0.1724,"third man":0.023},"in-wicket|good length|left hand bat":{"fine leg":0.0058,"leg side":0.314,"long off":0.1047,"long on":0.186,"miss":0.0872,"off side":0.2965,"third man":0.0058},"in-wicket|good length|right hand bat":{"fine leg":0.0232,"leg side":0.3046,"long off":0.1457,"long on":0.1523,"miss":0.0861,"off side":0.2748,"third man":0.0132},"in-wicket|short length|left hand bat":{"fine leg":0.0345,"leg side":0.5287,"long off":0.023,"long on":0.1149,"miss":0.0345,"off side":0.2414,"third man":0.023},"in-wicket|short length|right hand bat":{"fine leg":0.0066,"leg side":0.4967,"long off":0.0861,"long on":0.1192,"miss":0.0861,"off side":0.1921,"third man":0.0132},"in-wicket|yorker|left hand bat":{"leg side":0.1818,"long off":0.0909,"long on":0.2727,"miss":0.0909,"off side":0.3636},"in-wicket|yorker|right hand bat":{"fine leg":0.0435,"leg side":0.087,"long off":0.1304,"long on":0.4348,"miss":0.0435,"off side":0.2609},"leg stump|full length|left hand bat":{"fine leg":0.12,"leg side":0.5333,"long off":0.0467,"long on":0.1,"miss":0.1267,"off side":0.06,"third man":0.0133},"leg stump|full length|right hand bat":{"fine leg":0.2303,"leg side":0.4934,"long off":0.0066,"long on":0.0921,"miss":0.1316,"off side":0.0395,"third man":0.0066},"leg stump|good length|left hand bat":{"fine leg":0.1405,"leg side":0.6281,"long off":0.0248,"long on":0.0331,"miss":0.1074,"off side":0.0579,"third man":0.0083},"leg stump|good length|right hand bat":{"fine leg":0.175,"leg side":0.575,"long off":0.0187,"long on":0.0875,"miss":0.0688,"off side":0.0625,"third man":0.0125},"leg stump|short length|left hand bat":{"fine leg":0.2018,"leg side":0.5229,"long on":0.0642,"miss":0.1009,"off side":0.0642,"third man":0.0459},"leg stump|short length|right hand bat":{"fine leg":0.293,"leg side":0.5478,"long off":0.0127,"long on":0.0127,"miss":0.0892,"off side":0.0382,"third man":0.0064},"leg stump|yorker|left hand bat":{"fine leg":0.1765,"leg side":0.2941,"long off":0.1176,"long on":0.0588,"miss":0.2353,"off side":0.1176},"leg stump|yorker|right hand bat":{"fine leg":0.125,"leg side":0.625,"long on":0.25},"outside off|full length|left hand bat":{"fine leg":0.0104,"leg side":0.0868,"long off":0.1701,"long on":0.0903,"miss":0.0208,"off side":0.5451,"third man":0.0764},"outside off|full length|right hand bat":{"fine leg":0.0072,"leg side":0.0553,"long off":0.2163,"long on":0.1178,"miss":0.0529,"off side":0.4856,"third man":0.0649},"outside off|good length|left hand bat":{"fine leg":0.0191,"leg side":0.0725,"long off":0.0954,"long on":0.0573,"miss":0.0649,"off side":0.584,"third man":0.1069},"outside off|good length|right hand bat":{"leg side":0.0632,"long off":0.0675,"long on":0.0545,"miss":0.0719,"off side":0.6514,"third man":0.0915},"outside off|short length|left hand bat":{"fine leg":0.0163,"leg side":0.1107,"long off":0.0489,"long on":0.0619,"miss":0.0391,"off side":0.57,"third man":0.1531},"outside off|short length|right hand bat":{"fine leg":0.0022,"leg side":0.1092,"long off":0.0415,"long on":0.0721,"miss":0.0371,"off side":0.5786,"third man":0.1594},"outside off|yorker|left hand bat":{"fine leg":0.0588,"leg side":0.0588,"long off":0.0588,"long on":0.0588,"off side":0.6471,"third man":0.1176},"outside off|yorker|right hand bat":{"long off":0.1579,"long on":0.1053,"miss":0.0526,"off side":0.3684,"third man":0.3158},"wide line|full length|left hand bat":{"fine leg":0.0417,"long off":0.0833,"miss":0.5,"off side":0.3333,"third man":0.0417},"wide line|full length|right hand bat":{"long off":0.16,"miss":0.44,"off side":0.36,"third man":0.04},"wide line|good length|left hand bat":{"leg side":0.0909,"miss":0.8485,"off side":0.0303,"third man":0.0303},"wide line|good length|right hand bat":{"fine leg":0.04,"miss":0.84,"off side":0.08,"third man":0.04},"wide line|short length|left hand bat":{"fine leg":0.0556,"leg side":0.0556,"miss":0.7222,"off side":0.1667},"wide line|short length|right hand bat":{"fine leg":0.0345,"leg side":0.0345,"miss":0.6207,"off side":0.2759,"third man":0.0345},"wide line|yorker|left hand bat":{"off side":0.6667,"third man":0.3333},"wide line|yorker|right hand bat":{"miss":0.1667,"off side":0.8333}};
+
+// ─────────────────────────────────────────────
+// FIELDING POSITIONS (SVG coordinates)
+// cx, cy relative to center (0,0) of a 500x500 ground
+// Ground radius = 220px (boundary), inner circle = 120px
+// Center = (250, 250)
+// ─────────────────────────────────────────────
+// All positions defined for RIGHT-HAND batsman (mirror for left-hand)
+// Angles: 0 = top (straight), positive = clockwise
+
+const POSITIONS_RHB = {
+  // ── Slips & close catchers ──
+  'first slip':       { r: 0.30, angle: 105 },   // behind off side close
+  'second slip':      { r: 0.30, angle: 115 },
+  'gully':            { r: 0.35, angle: 90  },
+  'point':            { r: 0.52, angle: 90  },
+  'cover point':      { r: 0.52, angle: 75  },
+  'cover':            { r: 0.52, angle: 62  },
+  'extra cover':      { r: 0.52, angle: 50  },
+  // ── Straight / on side ──
+  'mid on':           { r: 0.52, angle: -35 },
+  'mid off':          { r: 0.52, angle: 35  },
+  'long on':          { r: 0.92, angle: -30 },
+  'long off':         { r: 0.92, angle: 30  },
+  // ── Leg side ──
+  'square leg':       { r: 0.52, angle: -90 },
+  'mid wicket':       { r: 0.52, angle: -55 },
+  'backward square leg': { r: 0.52, angle: -100},
+  'deep square leg':  { r: 0.90, angle: -90 },
+  'deep mid wicket':  { r: 0.90, angle: -55 },
+  // ── Behind leg ──
+  'fine leg':         { r: 0.88, angle: -130},
+  'backward fine leg':{ r: 0.88, angle: -145},
+  // ── Behind off ──
+  'third man':        { r: 0.88, angle: 135 },
+  'deep third man':   { r: 0.92, angle: 140 },
+  // ── Straight boundary ──
+  'long stop':        { r: 0.90, angle: 180 },
+  // ── Short leg / bat pad ──
+  'short leg':        { r: 0.28, angle: -80 },
+  'silly mid on':     { r: 0.25, angle: -40 },
+  'bat pad':          { r: 0.25, angle: -25 },
+  // ── Other ──
+  'deep cover':       { r: 0.90, angle: 65  },
+  'deep point':       { r: 0.90, angle: 90  },
+  'sweeper off':      { r: 0.92, angle: 45  },
+  'sweeper leg':      { r: 0.92, angle: -45 },
+};
+
+// ── For LHB, mirror angle on vertical axis ──
+function mirrorAngle(angle) {
+  return -angle; // flip off/leg sides
+}
+
+function polarToXY(r, angleDeg, cx, cy, maxR) {
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return {
+    x: cx + r * maxR * Math.cos(rad),
+    y: cy + r * maxR * Math.sin(rad)
+  };
+}
+
+// ─────────────────────────────────────────────
+// CRICKET RULES ENGINE
+// ─────────────────────────────────────────────
+function getCricketRules(format, over, wickets) {
+  const isPP = (format === 'T20' && over <= 6) || (format === 'ODI' && over <= 10);
+  const isMid = (format === 'T20' && over > 6 && over <= 15) || (format === 'ODI' && over > 10 && over <= 40);
+  const isDeath = !isPP && !isMid;
+
+  let maxOutside, minInside, phase;
+  if (format === 'T20') {
+    if (over <= 6) { maxOutside = 2; minInside = 9; phase = 'Powerplay (Overs 1-6)'; }
+    else if (over <= 15) { maxOutside = 5; minInside = 6; phase = 'Middle Overs (7-15)'; }
+    else { maxOutside = 5; minInside = 6; phase = 'Death Overs (16-20)'; }
+  } else if (format === 'ODI') {
+    if (over <= 10) { maxOutside = 2; minInside = 9; phase = 'Powerplay 1 (1-10)'; }
+    else if (over <= 40) { maxOutside = 4; minInside = 7; phase = 'Middle Overs (11-40)'; }
+    else { maxOutside = 5; minInside = 6; phase = 'Death Overs (41-50)'; }
+  } else {
+    maxOutside = 9; minInside = 2; phase = 'Test Match';
+  }
+
+  // Max 2 fielders behind square on leg side (LBW rule excluded; fielding rule)
+  return { isPP, isMid, isDeath, maxOutside, minInside, phase, format };
+}
+
+// ─────────────────────────────────────────────
+// FIELD PLACEMENT ENGINE
+// ─────────────────────────────────────────────
+function computeField(inputs) {
+  const {batHand, ballLine, ballLength, bowlerType, speed, angle,
+         pitchType, format, over, wickets, pressure, innings, strikeRate, rrr} = inputs;
+
+  const rules = getCricketRules(format, over, wickets);
+  const isFast = bowlerType.includes('fast');
+  const isLAF = bowlerType === 'left arm fast';
+  const isRAF = bowlerType === 'right arm fast';
+  const isRHS = bowlerType === 'right arm spin';
+  const isLAS = bowlerType === 'left arm spin';
+  const isLHB = batHand === 'left hand bat';
+  const isOTW = angle === 'over';
+
+  // Phase
+  const isPP = rules.isPP;
+  const isDeath = rules.isDeath;
+  const isMid = rules.isMid;
+  const maxOut = rules.maxOutside;
+
+  // Speed category
+  const speedCat = speed >= 140 ? 'express' : speed >= 125 ? 'fast' : speed >= 110 ? 'medium' : 'slow';
+
+  // Get ML shot probabilities
+  const batKey = isLHB ? 'left hand bat' : 'right hand bat';
+  const dataKey = `${ballLine}|${ballLength}|${batKey}`;
+  const shotProbs = SHOT_DATA[dataKey] || {};
+
+  // Infer scoring zones from shot probs
+  const legScore = (shotProbs['leg side'] || 0) + (shotProbs['fine leg'] || 0)*0.5;
+  const offScore = (shotProbs['off side'] || 0) + (shotProbs['third man'] || 0)*0.5;
+  const longOnScore = shotProbs['long on'] || 0;
+  const longOffScore = shotProbs['long off'] || 0;
+  const fineScore = shotProbs['fine leg'] || 0;
+  const thirdScore = shotProbs['third man'] || 0;
+
+  // FIELDING POSITIONS pool (for RHB – mirrored for LHB)
+  // We choose 9 outfield/infield positions (bowler + WK already placed)
+  let chosen = [];
+  let outCount = 0;
+
+  // ── HELPER: add position ──
+  const addPos = (name, outside) => {
+    if (outCount + (outside ? 1 : 0) <= maxOut) {
+      chosen.push(name);
+      if (outside) outCount++;
+      return true;
+    }
+    return false;
+  };
+
+  // ─── SCENARIO-BASED LOGIC ───
+
+  const isBodyline = (ballLine === 'leg stump' || ballLine === 'in-wicket') && 
+                     (ballLength === 'short length');
+  const isBouncer = ballLength === 'short length' && isFast;
+  const isYorker = ballLength === 'yorker';
+  const isFullPitch = ballLength === 'full length';
+  const isGoodLength = ballLength === 'good length';
+  const isOutsideOff = ballLine === 'outside off';
+  const isLegStump = ballLine === 'leg stump';
+  const isInwicket = ballLine === 'in-wicket';
+  const isWide = ballLine === 'wide line';
+
+  // Always include WK (handled separately). Bowler fixed.
+  // Leg-side limit: max 2 behind square on leg (cricket law)
+  let legBehindCount = 0;
+  const addLegBehind = (name, outside) => {
+    if (legBehindCount < 2) {
+      const added = addPos(name, outside);
+      if (added) legBehindCount++;
+      return added;
+    }
+    return false;
+  };
+
+  // ─── 1. BOUNCER / SHORT of LENGTH to leg/body ───
+  if (isBouncer && (isBodyline || isLegStump)) {
+    // Batsman likely: pull, hook → leg-side boundary, fine leg
+    // High probability: leg side boundary, deep sq leg, fine leg
+    if (outCount < maxOut) addPos('deep square leg', true);
+    if (outCount < maxOut) addLegBehind('fine leg', true);
+    if (outCount < maxOut && legBehindCount < 2) addLegBehind('backward fine leg', true);
+    // Gully for top-edge
+    if (outCount < maxOut) addPos('third man', true);
+    // Rest infield
+    addPos('mid wicket', false);
+    addPos('square leg', false);
+    addPos('cover point', false);
+    // Short leg only in test
+    if (format === 'Test' && wickets < 5) addPos('short leg', false);
+    // Long on / long off ONLY if room and phase allows, but NOT for bodyline
+    // Fill remaining with infield positions
+    const remaining = 9 - chosen.length;
+    const fillers = ['mid on', 'mid off', 'backward square leg', 'extra cover'];
+    for (let i = 0; i < fillers.length && chosen.length < 9; i++) {
+      if (!chosen.includes(fillers[i])) addPos(fillers[i], false);
+    }
+  }
+
+  // ─── 2. BOUNCER / SHORT outside off ───
+  else if (isBouncer && isOutsideOff) {
+    // Batsman likely: cut, pull, leave or top-edge
+    if (outCount < maxOut) addPos('third man', true);      // cut/top-edge
+    if (outCount < maxOut) addPos('deep point', true);     // cut boundary
+    if (outCount < maxOut) addPos('deep cover', true);     // aggressive cut
+    if (outCount < maxOut) addLegBehind('fine leg', true); // top-edge pull
+    addPos('gully', false);
+    addPos('point', false);
+    addPos('cover', false);
+    addPos('mid off', false);
+    // Fill
+    const remaining = 9 - chosen.length;
+    const fillers = ['mid on', 'square leg', 'cover point'];
+    for (let i = 0; i < fillers.length && chosen.length < 9; i++) {
+      addPos(fillers[i], false);
+    }
+  }
+
+  // ─── 3. YORKER ───
+  else if (isYorker) {
+    // Most runs: off side, fine leg (miss-hit)
+    // Death overs: boundary protection
+    if (isDeath) {
+      if (outCount < maxOut) addPos('long off', true);
+      if (outCount < maxOut) addPos('long on', true);
+      if (outCount < maxOut) addPos('deep mid wicket', true);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      if (outCount < maxOut) addPos('deep point', true);
+      addPos('mid on', false);
+      addPos('mid off', false);
+      addPos('cover', false);
+      addPos('mid wicket', false);
+    } else {
+      // Attacking yorker field
+      addPos('mid on', false);
+      addPos('mid off', false);
+      addPos('cover', false);
+      addPos('mid wicket', false);
+      addPos('square leg', false);
+      addPos('point', false);
+      if (outCount < maxOut) addPos('long off', true);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      addPos('cover point', false);
+    }
+  }
+
+  // ─── 4. FULL LENGTH – off side line ───
+  else if (isFullPitch && isOutsideOff) {
+    // Drive-friendly: cover drive, straight
+    if (outCount < maxOut) addPos('long off', true);
+    if (outCount < maxOut) addPos('long on', true);
+    if (outCount < maxOut) addPos('deep cover', true);
+    if (outCount < maxOut) addPos('third man', true);
+    addPos('cover', false);
+    addPos('extra cover', false);
+    addPos('mid off', false);
+    addPos('point', false);
+    addPos('mid on', false);
+  }
+
+  // ─── 5. FULL LENGTH – leg stump ───
+  else if (isFullPitch && (isLegStump || isInwicket)) {
+    // Flick, sweep, leg glance
+    if (outCount < maxOut) addPos('deep mid wicket', true);
+    if (outCount < maxOut) addLegBehind('fine leg', true);
+    if (outCount < maxOut) addPos('long on', true);
+    if (outCount < maxOut) addPos('deep square leg', true);
+    addPos('mid wicket', false);
+    addPos('square leg', false);
+    addPos('mid on', false);
+    addPos('mid off', false);
+    addPos('cover', false);
+  }
+
+  // ─── 6. GOOD LENGTH – off side ───
+  else if (isGoodLength && isOutsideOff) {
+    // Typical attacking off-side field
+    if (isPP) {
+      // Attacking: max 2 outside
+      addPos('gully', false);
+      addPos('point', false);
+      addPos('cover', false);
+      addPos('extra cover', false);
+      addPos('mid off', false);
+      addPos('mid on', false);
+      addPos('square leg', false);
+      if (outCount < maxOut) addPos('third man', true);
+      if (outCount < maxOut) addPos('fine leg', true);
+    } else if (isDeath) {
+      if (outCount < maxOut) addPos('long off', true);
+      if (outCount < maxOut) addPos('long on', true);
+      if (outCount < maxOut) addPos('deep point', true);
+      if (outCount < maxOut) addPos('third man', true);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      addPos('cover', false);
+      addPos('mid off', false);
+      addPos('mid on', false);
+      addPos('mid wicket', false);
+    } else {
+      // Middle overs
+      if (outCount < maxOut) addPos('third man', true);
+      addPos('gully', false);
+      addPos('point', false);
+      addPos('cover', false);
+      addPos('mid off', false);
+      addPos('mid on', false);
+      addPos('mid wicket', false);
+      if (outCount < maxOut) addPos('long off', true);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+    }
+  }
+
+  // ─── 7. GOOD LENGTH – leg/in-wicket ───
+  else if (isGoodLength && (isLegStump || isInwicket)) {
+    if (isPP) {
+      addPos('mid wicket', false);
+      addPos('square leg', false);
+      addPos('mid on', false);
+      addPos('mid off', false);
+      addPos('cover', false);
+      addPos('backward square leg', false);
+      addPos('extra cover', false);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      if (outCount < maxOut) addPos('third man', true);
+    } else if (isDeath) {
+      if (outCount < maxOut) addPos('deep mid wicket', true);
+      if (outCount < maxOut) addPos('deep square leg', true);
+      if (outCount < maxOut) addPos('long on', true);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      if (outCount < maxOut) addPos('deep cover', true);
+      addPos('mid on', false);
+      addPos('mid wicket', false);
+      addPos('cover', false);
+      addPos('mid off', false);
+    } else {
+      if (outCount < maxOut) addPos('deep mid wicket', true);
+      addPos('mid wicket', false);
+      addPos('square leg', false);
+      addPos('mid on', false);
+      addPos('mid off', false);
+      addPos('cover', false);
+      if (outCount < maxOut) addLegBehind('fine leg', true);
+      addPos('extra cover', false);
+      addPos('backward square leg', false);
+    }
+  }
+
+  // ─── 8. WIDE LINE ───
+  else if (isWide) {
+    // Hard to score – mostly miss/leave; protect edges
+    if (outCount < maxOut) addPos('third man', true);
+    if (outCount < maxOut) addPos('deep point', true);
+    addPos('gully', false);
+    addPos('point', false);
+    addPos('cover', false);
+    addPos('extra cover', false);
+    addPos('mid off', false);
+    addPos('mid on', false);
+    if (outCount < maxOut) addLegBehind('fine leg', true);
+  }
+
+  // ─── FALLBACK ───
+  else {
+    const defaults = ['mid on','mid off','cover','mid wicket','square leg','point','gully'];
+    defaults.forEach(p => { if (chosen.length < 7) addPos(p, false); });
+    if (outCount < maxOut) addPos('long on', true);
+    if (outCount < maxOut) addPos('third man', true);
+  }
+
+  // ─── SPIN BOWLING adjustments ───
+  if (!isFast) {
+    // Spin: no slips for death overs; sweeper positions
+    if (isDeath && chosen.includes('gully')) {
+      const idx = chosen.indexOf('gully');
+      chosen[idx] = 'sweeper off';
+    }
+    // Short leg for spin in test/middle
+    if (format === 'Test' && !chosen.includes('short leg') && chosen.length < 9) {
+      chosen.push('short leg');
+    }
+  }
+
+  // ─── PRESSURE / WICKETS adjustments ───
+  // High pressure + many wickets left + low RRR → more attacking field
+  if (pressure === 'high' && wickets <= 3 && !isDeath) {
+    // Replace a boundary fielder with slip/gully if off-side
+    if (isOutsideOff && !chosen.includes('gully') && chosen.length <= 9) {
+      // Replace sweeper if exists, else remove last outfield
+      const boundaryOff = chosen.findIndex(p => ['long off','deep cover','deep point'].includes(p));
+      if (boundaryOff >= 0) { chosen[boundaryOff] = 'gully'; outCount = Math.max(0, outCount-1); }
+    }
+  }
+
+  // ─── PITCH adjustments ───
+  if (pitchType === 'bouncy' && isFast && !isBodyline) {
+    // Bouncy pitch: move some infield back if short
+    if (ballLength === 'short length' && outCount < maxOut && !chosen.includes('deep square leg')) {
+      chosen.push('deep square leg');
+    }
+  }
+  if (pitchType === 'turning' && !isFast) {
+    if (!chosen.includes('short leg') && format !== 'T20') chosen.push('short leg');
+  }
+
+  // ─── AROUND THE WICKET adjustments ───
+  if (!isOTW) {
+    // Around the wicket changes angle → more leg-side probability
+    if (isLHB && isFast) {
+      // Rough outside off for LHB → cover more off-side
+      if (!chosen.includes('point') && chosen.length <= 9) {
+        const r = chosen.findIndex(p => ['mid wicket','extra cover'].includes(p));
+        if (r >= 0) chosen[r] = 'cover point';
+      }
+    }
+  }
+
+  // ─── MIRROR for LEFT-HAND BATSMAN ───
+  // Positions names stay meaningful; we mirror coordinates in SVG
+  // But also swap some position names conceptually
+  if (isLHB) {
+    chosen = chosen.map(p => mirrorPositionLHB(p));
+  }
+
+  // ─── Ensure exactly 9 positions ───
+  // Remove duplicates
+  chosen = [...new Set(chosen)];
+
+  // Pad if < 9
+  const allPos = ['mid on','mid off','cover','mid wicket','square leg','point',
+                  'gully','third man','fine leg','long on','long off','deep mid wicket',
+                  'deep square leg','backward square leg','extra cover','cover point'];
+  let idx = 0;
+  while (chosen.length < 9 && idx < allPos.length) {
+    const p = isLHB ? mirrorPositionLHB(allPos[idx]) : allPos[idx];
+    if (!chosen.includes(p)) chosen.push(p);
+    idx++;
+  }
+
+  // Trim to 9
+  chosen = chosen.slice(0, 9);
+
+  return { positions: chosen, rules, shotProbs, outCount };
+}
+
+// Mirror position names for LHB (swap off-side and leg-side)
+function mirrorPositionLHB(pos) {
+  const mirrorMap = {
+    'mid off': 'mid on', 'mid on': 'mid off',
+    'long off': 'long on', 'long on': 'long off',
+    'extra cover': 'mid wicket', 'mid wicket': 'extra cover',
+    'cover': 'mid wicket', 'square leg': 'point',
+    'point': 'square leg', 'gully': 'backward square leg',
+    'backward square leg': 'gully', 'cover point': 'square leg',
+    'fine leg': 'third man', 'third man': 'fine leg',
+    'deep square leg': 'deep point', 'deep point': 'deep square leg',
+    'deep mid wicket': 'deep cover', 'deep cover': 'deep mid wicket',
+    'backward fine leg': 'deep third man', 'deep third man': 'backward fine leg',
+    'sweeper off': 'sweeper leg', 'sweeper leg': 'sweeper off',
+    'first slip': 'first slip', 'second slip': 'second slip',
+    'short leg': 'bat pad',
+    // unchanged
+    'long stop': 'long stop',
+  };
+  return mirrorMap[pos] || pos;
+}
+
+// ─────────────────────────────────────────────
+// SVG GROUND RENDERER
+// ─────────────────────────────────────────────
+const CX = 250, CY = 250, BOUNDARY_R = 220, CIRCLE_R = 118;
+const PITCH_W = 12, PITCH_H = 58;
+
+function getPositionCoords(posName, isLHB) {
+  const def = POSITIONS_RHB[posName];
+  if (!def) return null;
+  let { r, angle } = def;
+  if (isLHB) angle = mirrorAngle(angle);
+  return polarToXY(r, angle, CX, CY, BOUNDARY_R);
+}
+
+const FIELDER_COLORS = {
+  bowler: '#f7b731',
+  wk: '#3d9cf5',
+  fielder: '#00e5a0',
+  highlight: '#ff4d6d'
+};
+
+const ZONE_COLORS = {
+  'leg side': '#3d9cf5',
+  'off side': '#f7b731',
+  'fine leg': '#ff6b9d',
+  'third man': '#a78bfa',
+  'long on': '#fb923c',
+  'long off': '#4ade80',
+  'miss': '#6b7fa3'
+};
+
+function renderGround(positions, isLHB, shotProbs) {
+  const svg = [];
+
+  // Background
+  svg.push(`<ellipse cx="${CX}" cy="${CY}" rx="${BOUNDARY_R}" ry="${BOUNDARY_R}" fill="#1f4a22" stroke="#2d6b30" stroke-width="2"/>`);
+
+  // Outfield texture rings
+  svg.push(`<ellipse cx="${CX}" cy="${CY}" rx="${BOUNDARY_R-5}" ry="${BOUNDARY_R-5}" fill="none" stroke="#2a5c2d" stroke-width="8" stroke-dasharray="15,8" opacity="0.5"/>`);
+
+  // 30-yard circle
+  svg.push(`<ellipse cx="${CX}" cy="${CY}" rx="${CIRCLE_R}" ry="${CIRCLE_R}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="8,5" opacity="0.6"/>`);
+
+  // Shot probability overlay zones
+  const shotAreas = {
+    'fine leg': { angle: -130, spread: 40 },
+    'leg side': { angle: -75, spread: 60 },
+    'long on': { angle: -30, spread: 30 },
+    'long off': { angle: 30, spread: 30 },
+    'off side': { angle: 75, spread: 60 },
+    'third man': { angle: 130, spread: 40 },
+  };
+  Object.entries(shotAreas).forEach(([area, {angle, spread}]) => {
+    const prob = shotProbs[area] || 0;
+    if (prob < 0.02) return;
+    const a = isLHB ? mirrorAngle(angle) : angle;
+    const intensity = Math.min(prob * 2.5, 0.55);
+    const col = ZONE_COLORS[area] || '#ffffff';
+    // Draw arc sector
+    const a1 = (a - spread/2 - 90) * Math.PI / 180;
+    const a2 = (a + spread/2 - 90) * Math.PI / 180;
+    const r1 = CIRCLE_R, r2 = BOUNDARY_R;
+    const x1o = CX + r2 * Math.cos(a1), y1o = CY + r2 * Math.sin(a1);
+    const x2o = CX + r2 * Math.cos(a2), y2o = CY + r2 * Math.sin(a2);
+    const x1i = CX + r1 * Math.cos(a1), y1i = CY + r1 * Math.sin(a1);
+    const x2i = CX + r1 * Math.cos(a2), y2i = CY + r1 * Math.sin(a2);
+    const la = spread > 180 ? 1 : 0;
+    svg.push(`<path d="M${x1i},${y1i} A${r1},${r1} 0 ${la},1 ${x2i},${y2i} L${x2o},${y2o} A${r2},${r2} 0 ${la},0 ${x1o},${y1o} Z" fill="${col}" opacity="${intensity.toFixed(2)}"/>`);
+    // Prob label
+    const midA = (a - 90) * Math.PI / 180;
+    const lr = (r1 + r2) / 2;
+    const lx = CX + lr * Math.cos(midA), ly = CY + lr * Math.sin(midA);
+    svg.push(`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="600" opacity="0.9">${Math.round(prob*100)}%</text>`);
+  });
+
+  // Inner zone (inside circle) probability
+  const innerProb = (shotProbs['leg side']||0)*0.3 + (shotProbs['off side']||0)*0.3;
+  const innerAreas = ['leg side','off side','long on','long off'];
+  innerAreas.forEach(area => {
+    const p = shotProbs[area] || 0;
+    if (p < 0.05) return;
+    const info = shotAreas[area];
+    if (!info) return;
+    const a = isLHB ? mirrorAngle(info.angle) : info.angle;
+    const midA = (a - 90) * Math.PI / 180;
+    const lr = CIRCLE_R * 0.6;
+    const lx = CX + lr * Math.cos(midA), ly = CY + lr * Math.sin(midA);
+    const col = ZONE_COLORS[area] || '#ffffff';
+    svg.push(`<circle cx="${lx}" cy="${ly}" r="${Math.min(p*80,28)}" fill="${col}" opacity="0.15"/>`);
+  });
+
+  // Pitch rectangle
+  svg.push(`<rect x="${CX-PITCH_W/2}" y="${CY-PITCH_H/2}" width="${PITCH_W}" height="${PITCH_H}" rx="2" fill="#c8a96e" stroke="#a8814e" stroke-width="1"/>`);
+
+  // Crease lines
+  const cY1 = CY - PITCH_H/2 + 8, cY2 = CY + PITCH_H/2 - 8;
+  svg.push(`<line x1="${CX-PITCH_W/2-4}" y1="${cY1}" x2="${CX+PITCH_W/2+4}" y2="${cY1}" stroke="white" stroke-width="1.2"/>`);
+  svg.push(`<line x1="${CX-PITCH_W/2-4}" y1="${cY2}" x2="${CX+PITCH_W/2+4}" y2="${cY2}" stroke="white" stroke-width="1.2"/>`);
+
+  // Stumps (batsman end = bottom)
+  [-3,0,3].forEach(dx => {
+    svg.push(`<line x1="${CX+dx}" y1="${CY+PITCH_H/2-8}" x2="${CX+dx}" y2="${CY+PITCH_H/2-18}" stroke="#e8e8e8" stroke-width="1.5"/>`);
+    svg.push(`<line x1="${CX+dx}" y1="${CY-PITCH_H/2+8}" x2="${CX+dx}" y2="${CY-PITCH_H/2+18}" stroke="#e8e8e8" stroke-width="1.5"/>`);
+  });
+
+  // Boundary rope
+  svg.push(`<ellipse cx="${CX}" cy="${CY}" rx="${BOUNDARY_R}" ry="${BOUNDARY_R}" fill="none" stroke="#ffffff" stroke-width="2.5" opacity="0.7"/>`);
+
+  // Cardinal labels
+  svg.push(`<text x="${CX}" y="${CY-BOUNDARY_R-8}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="9" font-family="DM Sans">BOWLER END</text>`);
+  svg.push(`<text x="${CX}" y="${CY+BOUNDARY_R+14}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="9" font-family="DM Sans">BATSMAN END</text>`);
+
+  // ── WICKET KEEPER ──
+  const wkY = CY + PITCH_H/2 + 22;
+  svg.push(`<circle cx="${CX}" cy="${wkY}" r="11" fill="#1a4a6e" stroke="${FIELDER_COLORS.wk}" stroke-width="2.5"/>`);
+  svg.push(`<text x="${CX}" y="${wkY}" text-anchor="middle" dominant-baseline="middle" fill="${FIELDER_COLORS.wk}" font-size="8" font-weight="700" font-family="DM Sans">WK</text>`);
+
+  // ── BOWLER ──
+  const bwlY = CY - PITCH_H/2 - 25;
+  svg.push(`<circle cx="${CX}" cy="${bwlY}" r="11" fill="#4a3800" stroke="${FIELDER_COLORS.bowler}" stroke-width="2.5"/>`);
+  svg.push(`<text x="${CX}" y="${bwlY}" text-anchor="middle" dominant-baseline="middle" fill="${FIELDER_COLORS.bowler}" font-size="7" font-weight="700" font-family="DM Sans">BWL</text>`);
+
+  // ── 9 FIELDERS ──
+  positions.forEach((posName, i) => {
+    const coords = getPositionCoords(posName, isLHB);
+    if (!coords) return;
+    const { x, y } = coords;
+    const num = i + 1;
+    svg.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="#0d3825" stroke="${FIELDER_COLORS.fielder}" stroke-width="2.2" class="fielder-dot" data-name="${posName}" style="cursor:pointer"/>`);
+    svg.push(`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="${FIELDER_COLORS.fielder}" font-size="9" font-weight="700" font-family="DM Sans" pointer-events="none">${num}</text>`);
+  });
+
+  return svg.join('\n');
+}
+
+// ─────────────────────────────────────────────
+// PROB BAR COLORS
+// ─────────────────────────────────────────────
+function probColor(prob) {
+  if (prob >= 0.4) return '#ff4d6d';
+  if (prob >= 0.25) return '#f7b731';
+  if (prob >= 0.12) return '#00e5a0';
+  return '#3d9cf5';
+}
+
+// ─────────────────────────────────────────────
+// GENERATE INSIGHTS
+// ─────────────────────────────────────────────
+function generateInsights(inputs, result) {
+  const { positions, rules, shotProbs, outCount } = result;
+  const insights = [];
+  const { batHand, ballLine, ballLength, bowlerType, speed, pitchType,
+          format, over, wickets, pressure, innings, angle } = inputs;
+  const isLHB = batHand === 'left hand bat';
+  const isFast = bowlerType.includes('fast');
+
+  // Phase insight
+  insights.push({ icon: '📋', text: `<b>${rules.phase}</b> — Max ${rules.maxOutside} fielders outside the 30-yard circle. ${outCount} placed outside.` });
+
+  // Top scoring zone
+  const topZones = Object.entries(shotProbs).filter(([k])=>k!=='miss').sort((a,b)=>b[1]-a[1]);
+  if (topZones.length > 0) {
+    insights.push({ icon: '🎯', text: `ML model predicts highest scoring probability toward <b>${topZones[0][0]}</b> (${Math.round(topZones[0][1]*100)}%) based on ball line, length, and batting style.` });
+  }
+
+  // Speed insight
+  if (isFast && speed >= 140) {
+    insights.push({ icon: '⚡', text: `<b>Express pace (${speed}km/h)</b> — Short balls will likely induce pull/hook shots. Leg-side boundary protection is critical.` });
+  }
+
+  // Pitch insight
+  if (pitchType === 'bouncy') {
+    insights.push({ icon: '🏟️', text: `<b>Bouncy pitch</b> — Extra bounce aids short ball effectiveness. Deep leg fielders positioned to take top-edge catches.` });
+  }
+  if (pitchType === 'turning') {
+    insights.push({ icon: '🔄', text: `<b>Turning pitch</b> — Spin bowling danger zone. Catching positions adjusted for edge/sweep plays.` });
+  }
+
+  // Angle
+  if (angle === 'around') {
+    insights.push({ icon: '🔀', text: `<b>Around the wicket</b> — Angle change creates different line probabilities. Field shifted accordingly.` });
+  }
+
+  // Cricket law
+  if (rules.isPP) {
+    insights.push({ icon: '📌', text: `<b>Powerplay rules active</b> — Only ${rules.maxOutside} fielders allowed outside the circle. Maximum attacking field enforced.` });
+  }
+
+  // Wickets insight
+  if (wickets >= 7) {
+    insights.push({ icon: '🏆', text: `<b>${wickets} wickets down</b> — Tail-end batsman. Aggressive fielding with catching positions encouraged.` });
+  }
+
+  if (pressure === 'high' && innings === 'chasing') {
+    insights.push({ icon: '💥', text: `<b>High pressure chase</b> — Batsman likely to take risks. Boundary protection prioritized in scoring zones.` });
+  }
+
+  return insights;
+}
+
+// ─────────────────────────────────────────────
+// MAIN ANALYZE FUNCTION
+// ─────────────────────────────────────────────
+function analyzeField() {
+  const batHand = document.querySelector('input[name="bathand"]:checked').value;
+  const strikeRate = parseFloat(document.getElementById('strikeRate').value) || 120;
+  const batAvg = parseFloat(document.getElementById('batAvg').value) || 25;
+  const format = document.getElementById('format').value;
+  const overNum = parseInt(document.getElementById('overNum').value) || 7;
+  const innings = document.getElementById('innings').value;
+  const wickets = parseInt(document.getElementById('wickets').value) || 0;
+  const rrr = parseFloat(document.getElementById('rrr').value) || 8;
+  const pressure = document.getElementById('pressure').value;
+  const bowlerType = document.getElementById('bowlerType').value;
+  const speed = parseFloat(document.getElementById('speed').value) || 130;
+  const ballLine = document.getElementById('ballLine').value;
+  const ballLength = document.getElementById('ballLength').value;
+  const angle = document.querySelector('input[name="angle"]:checked').value;
+  const pitchType = document.getElementById('pitchType').value;
+
+  const inputs = { batHand, strikeRate, batAvg, format, over: overNum,
+                   innings, wickets, rrr, pressure, bowlerType, speed,
+                   ballLine, ballLength, angle, pitchType };
+
+  const isLHB = batHand === 'left hand bat';
+  const result = computeField(inputs);
+  const { positions, rules, shotProbs, outCount } = result;
+
+  // Validate total player count
+  const totalPlayers = 2 + positions.length; // bowler + WK + 9
+  const violations = [];
+  if (totalPlayers !== 11) violations.push(`Player count error: ${totalPlayers} (must be 11)`);
+  if (outCount > rules.maxOutside) violations.push(`Too many outside circle: ${outCount} (max ${rules.maxOutside})`);
+
+  // Check leg-side behind square (max 2 per laws)
+  const legBehindPos = ['fine leg','backward fine leg','long stop','backward square leg'];
+  const legBehindCount = positions.filter(p => legBehindPos.includes(p)).length;
+  if (legBehindCount > 2) violations.push(`Too many fielders behind square on leg side: ${legBehindCount} (max 2)`);
+
+  // Build HTML
+  const phase = rules.phase;
+  const insights = generateInsights(inputs, result);
+  const sortedShots = Object.entries(shotProbs).sort((a,b)=>b[1]-a[1]).filter(([k])=>k!=='miss');
+
+  const html = `
+    <div class="analysis-header">
+      <div>
+        <div class="analysis-title">Field Placement Analysis</div>
+        <div class="scenario-chips">
+          <span class="chip">${batHand === 'left hand bat' ? '🏏 Left-Handed' : '🏏 Right-Handed'}</span>
+          <span class="chip">${bowlerType.replace('arm','arm')}</span>
+          <span class="chip">${speed}km/h</span>
+          <span class="chip">${ballLine} / ${ballLength}</span>
+          <span class="chip">${angle === 'over' ? 'Over the Wicket' : 'Around the Wicket'}</span>
+          <span class="chip">${pitchType}</span>
+          <span class="chip">${format} · Over ${overNum}</span>
+          <span class="chip">${phase}</span>
+        </div>
+      </div>
+      <div class="ml-badge">ML Hybrid Engine · 4,430 balls</div>
+    </div>
+
+    ${violations.length > 0 ? `<div class="violation-box" style="display:block">⚠️ ${violations.join(' | ')}</div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+      <!-- Shot Probabilities -->
+      <div class="prob-section">
+        <div class="prob-title">📊 SHOT PROBABILITY MAP</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Based on dataset: ${ballLine} · ${ballLength} · ${batHand}</div>
+        ${sortedShots.map(([zone, prob]) => `
+          <div class="prob-bar-row">
+            <div class="prob-label">${zone}</div>
+            <div class="prob-track">
+              <div class="prob-fill" style="width:${Math.round(prob*100)}%;background:${probColor(prob)}"></div>
+            </div>
+            <div class="prob-pct">${Math.round(prob*100)}%</div>
+          </div>`).join('')}
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
+          <b style="color:var(--accent)">Fielding Rule:</b> ${rules.maxOutside} outside circle allowed in ${phase}. 
+          <br>Placed outside: <b style="color:var(--accent2)">${outCount}</b>
+        </div>
+      </div>
+
+      <!-- Fielder list -->
+      <div class="prob-section">
+        <div class="prob-title">👥 FIELDING POSITIONS (11 Players)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span class="stat-tag tag-yellow">🟡 Bowler</span>
+          <span class="stat-tag tag-blue">🔵 WK</span>
+          <span class="stat-tag tag-green">🟢 Fielder ×9</span>
+        </div>
+        <div class="fielder-list">
+          <div class="fielder-item"><div class="ficon" style="background:#f7b731"></div>Bowler (Fixed)</div>
+          <div class="fielder-item"><div class="ficon" style="background:#3d9cf5"></div>Wicket Keeper</div>
+          ${positions.map((p,i) => `<div class="fielder-item"><div class="ficon" style="background:#00e5a0"></div>${i+1}. ${p}</div>`).join('')}
+        </div>
+        <div style="margin-top:14px;padding:8px 10px;background:rgba(0,229,160,0.08);border-radius:6px;font-size:11px;color:var(--accent)">
+          ✅ Total on ground: <b>11 players</b> (Bowler + WK + 9 Fielders)
+        </div>
+      </div>
+    </div>
+
+    <!-- Cricket Ground -->
+    <div class="ground-section">
+      <div class="ground-title-row">
+        <div class="prob-title" style="margin-bottom:0">🏏 FIELD PLACEMENT DIAGRAM</div>
+        <div style="font-size:11px;color:var(--muted)">Colored zones = scoring probability · Numbers = fielder positions</div>
+      </div>
+      <svg id="cricket-ground" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+        ${renderGround(positions, isLHB, shotProbs)}
+      </svg>
+      <div class="fielder-list" style="max-width:560px">
+        <div class="fielder-item"><div class="ficon" style="background:#f7b731"></div>BWL – Bowler</div>
+        <div class="fielder-item"><div class="ficon" style="background:#3d9cf5"></div>WK – Wicket Keeper</div>
+        ${positions.map((p,i) => `<div class="fielder-item"><div class="ficon" style="background:#00e5a0"></div>${i+1} – ${p}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="insights-section">
+      <div class="prob-title">💡 ANALYST INSIGHTS</div>
+      ${insights.map(ins => `
+        <div class="insight-item">
+          <span class="insight-icon">${ins.icon}</span>
+          <span>${ins.text}</span>
+        </div>`).join('')}
+    </div>
+  `;
+
+  document.getElementById('mainContent').innerHTML = html;
+
+  // Tooltip for fielder dots
+  document.querySelectorAll('.fielder-dot').forEach(dot => {
+    dot.addEventListener('mousemove', e => {
+      const tt = document.getElementById('tooltip');
+      tt.style.display = 'block';
+      tt.style.left = (e.pageX + 12) + 'px';
+      tt.style.top = (e.pageY - 10) + 'px';
+      tt.textContent = dot.dataset.name;
+    });
+    dot.addEventListener('mouseleave', () => {
+      document.getElementById('tooltip').style.display = 'none';
+    });
+  });
+
+  // Update powerplay text
+  updatePPText();
+}
+
+function updatePPText() {
+  const format = document.getElementById('format').value;
+  const over = parseInt(document.getElementById('overNum').value) || 7;
+  const rules = getCricketRules(format, over, 0);
+  const el = document.getElementById('ppRuleText');
+  el.innerHTML = `<b>${rules.phase}</b> — ${rules.maxOutside} max outside circle (${11 - rules.maxOutside - 2} minimum inside)`;
+  const ra = document.getElementById('rulesAlert');
+  if (rules.isPP) {
+    ra.style.display = 'block';
+    ra.textContent = `⚡ Powerplay active: Only ${rules.maxOutside} fielders outside 30-yard circle allowed.`;
+  } else {
+    ra.style.display = 'none';
+  }
+}
+
+document.getElementById('format').addEventListener('change', updatePPText);
+document.getElementById('overNum').addEventListener('input', updatePPText);
+updatePPText();
+</script>
+</body>
+</html>
